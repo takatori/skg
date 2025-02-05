@@ -1,0 +1,18 @@
+services:
+  skg:
+    container_name: skg
+    tty: true
+    image: skg
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - target=dev
+    volumes:
+      - .:/app
+    ports:
+      - "8080:8080"
+
+networks:
+  skg:
+    driver: bridge

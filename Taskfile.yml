@@ -1,0 +1,18 @@
+version: '3'
+
+tasks:
+  run:
+    cmds:
+      - go run cmd/main.go
+  build:
+    cmds:
+      - docker compose build
+  test:
+    cmds:
+      - go test ./...
+  fmt:
+    cmds:
+      - go fmt ./...
+  up:
+    cmds:
+      - docker compose up
