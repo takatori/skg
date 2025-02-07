@@ -12,7 +12,38 @@ services:
       - .:/app
     ports:
       - "8080:8080"
+  
+  solr:
+    build:
+      context: ./solr/build/
+      dockerfile: Dockerfile
+    container_name: aips-solr
+    hostname: aips-solr
+    ports:
+      - 8983:8983 
+    environment:
+      - ZK_HOST=aips-zk:2181
+      - SOLR_HOST=aips-solr
+    networks:
+      - zk-solr
+      - solr-network
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+
+  zookeeper:
+    image: zookeeper:3.5.8
+    container_name: aips-zk
+    hostname: aips-zk
+    ports: 
+      - 2181:2128
+    networks:
+      - zk-solr
+      - solr-network
+    restart: unless-stopped
 
 networks:
   skg:
     driver: bridge
+  zk-solr:  
+  solr-network:    
