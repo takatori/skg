@@ -1,4 +1,24 @@
 services:
+
+  # workspace:
+  #   build:
+  #     context: .
+  #     dockerfile: .devcontainer/Dockerfile
+  #   init: true
+  #   environment:
+  #     - TZ=Asia/Tokyo
+  #   command: sleep infinity
+  #   volumes:
+  #     - .:/workspace:cached
+  #     - workspace_venv:/workspace/.venvd
+  #     - workspace_bin:/workspace/.bin
+  #   depends_on:
+  #     vespa:
+  #       condition: service_healthy
+  #   networks:
+  #     - skg
+  #     - solr-network
+
   skg:
     container_name: skg
     tty: true
@@ -12,6 +32,8 @@ services:
       - .:/app
     ports:
       - "8080:8080"
+    networks:
+      - solr-network
   
   solr:
     build:
