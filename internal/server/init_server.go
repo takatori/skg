@@ -9,4 +9,5 @@ func InitServer(e *echo.Echo) {
 
 	e.GET("/health", handler.NewHealthHandler())
 	e.POST("/solr/setup", handler.NewSetupSolrHandler())
+	e.GET("/skg", handler.NewSkgHandler())
 }
