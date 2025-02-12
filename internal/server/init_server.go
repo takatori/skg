@@ -11,5 +11,5 @@ func InitServer(e *echo.Echo) {
 	e.POST("/solr/setup", handler.NewSetupSolrHandler())
 	e.POST("/solr/schema", handler.NewSetupSolrSchemaHandler())
 	e.POST("/solr/feed", handler.NewFeedSolrDataHandler())
-	e.GET("/skg", handler.NewSkgHandler())
+	e.POST("/skg/relatedTerms", handler.NewRelatedTermsHandler())
 }
