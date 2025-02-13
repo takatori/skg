@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 )
@@ -21,6 +20,11 @@ func NewSkgHandler() func(echo.Context) error {
 type RelatedTermsParams struct {
 	Keyword    string `json:"keyword" validate:"required"`
 	Collection string `json:"collection" validate:"required"`
+}
+
+type RelatedTerm struct {
+	Term        string `json:"term"`
+	Relatedness string `json:"relatedness"`
 }
 
 // NewRelatedTermsHandler queries Solr and returns formatted related terms.
@@ -97,7 +101,7 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid buckets in response"})
 		}
 
-		var result strings.Builder
+		result := make([]RelatedTerm, 0)
 		for _, bucket := range buckets {
 			bkt, ok := bucket.(map[string]interface{})
 			if !ok {
@@ -108,9 +112,13 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 				relatedVal = fmt.Sprintf("%v", rel["relatedness"])
 			}
 			val = fmt.Sprintf("%v", bkt["val"])
-			result.WriteString(fmt.Sprintf("%s\t%s\n", relatedVal, val))
+			// result.WriteString(fmt.Sprintf("%s\t%s\n", relatedVal, val))
+			result = append(result, RelatedTerm{
+				Term:        val,
+				Relatedness: relatedVal,
+			})
 		}
 
-		return c.String(http.StatusOK, result.String())
+		return c.JSON(http.StatusOK, result)
 	}
 }
