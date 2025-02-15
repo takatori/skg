@@ -52,9 +52,11 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			},
 			"facet": map[string]interface{}{
 				"body": map[string]interface{}{
-					"type":     "terms",
-					"field":    "text",
-					"sort":     map[string]interface{}{"relatedness": "desc"},
+					"type":  "terms",
+					"field": "text",
+					"sort": map[string]interface{}{
+						"relatedness": "desc",
+					},
 					"mincount": 2,
 					"limit":    8,
 					"facet": map[string]interface{}{
