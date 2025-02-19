@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/samber/lo"
 )
 
 func NewSkgHandler() func(echo.Context) error {
@@ -38,36 +39,50 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 		}
 
-		// Build the request payload.
-		reqBody := map[string]interface{}{
-			"params": map[string]interface{}{
-				"qf":         "text",
-				"q":          params.Keyword,
-				"fore":       "{!type=$defType qf=$qf v=$q}",
-				"back":       "*:*",
-				"defType":    "edismax",
-				"rows":       0,
-				"echoParams": "none",
-				"omitHeader": "true",
-			},
-			"facet": map[string]interface{}{
-				"body": map[string]interface{}{
-					"type":  "terms",
-					"field": "text",
-					"sort": map[string]interface{}{
-						"relatedness": "desc",
-					},
-					"mincount": 2,
-					"limit":    8,
-					"facet": map[string]interface{}{
-						"relatedness": map[string]interface{}{
-							"type": "func",
-							"func": "relatedness($fore,$back)",
-						},
-					},
+		reqBody := transformRequest([]Node{
+			{
+				Field: "text",
+				Values: []string{
+					params.Keyword,
 				},
 			},
-		}
+			{
+				Field:         "text",
+				MinOccurrence: lo.ToPtr(2),
+				Limit:         lo.ToPtr(8),
+			},
+		})
+
+		// Build the request payload.
+		// reqBody := map[string]interface{}{
+		// 	"params": map[string]interface{}{
+		// 		"qf":         "text",
+		// 		"q":          params.Keyword,
+		// 		"fore":       "{!type=$defType qf=$qf v=$q}",
+		// 		"back":       "*:*",
+		// 		"defType":    "edismax",
+		// 		"rows":       0,
+		// 		"echoParams": "none",
+		// 		"omitHeader": "true",
+		// 	},
+		// 	"facet": map[string]interface{}{
+		// 		"body": map[string]interface{}{
+		// 			"type":  "terms",
+		// 			"field": "text",
+		// 			"sort": map[string]interface{}{
+		// 				"relatedness": "desc",
+		// 			},
+		// 			"mincount": 2,
+		// 			"limit":    8,
+		// 			"facet": map[string]interface{}{
+		// 				"relatedness": map[string]interface{}{
+		// 					"type": "func",
+		// 					"func": "relatedness($fore,$back)",
+		// 				},
+		// 			},
+		// 		},
+		// 	},
+		// }
 
 		payload, err := json.Marshal(reqBody)
 		if err != nil {
