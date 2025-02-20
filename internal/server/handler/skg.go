@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
@@ -39,7 +41,7 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 		}
 
-		reqBody := transformRequest([]Node{
+		nodes := []Node{
 			{
 				Field: "text",
 				Values: []string{
@@ -51,38 +53,8 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 				MinOccurrence: lo.ToPtr(2),
 				Limit:         lo.ToPtr(8),
 			},
-		})
-
-		// Build the request payload.
-		// reqBody := map[string]interface{}{
-		// 	"params": map[string]interface{}{
-		// 		"qf":         "text",
-		// 		"q":          params.Keyword,
-		// 		"fore":       "{!type=$defType qf=$qf v=$q}",
-		// 		"back":       "*:*",
-		// 		"defType":    "edismax",
-		// 		"rows":       0,
-		// 		"echoParams": "none",
-		// 		"omitHeader": "true",
-		// 	},
-		// 	"facet": map[string]interface{}{
-		// 		"body": map[string]interface{}{
-		// 			"type":  "terms",
-		// 			"field": "text",
-		// 			"sort": map[string]interface{}{
-		// 				"relatedness": "desc",
-		// 			},
-		// 			"mincount": 2,
-		// 			"limit":    8,
-		// 			"facet": map[string]interface{}{
-		// 				"relatedness": map[string]interface{}{
-		// 					"type": "func",
-		// 					"func": "relatedness($fore,$back)",
-		// 				},
-		// 			},
-		// 		},
-		// 	},
-		// }
+		}
+		reqBody := transformRequest(nodes)
 
 		payload, err := json.Marshal(reqBody)
 		if err != nil {
@@ -98,43 +70,49 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 		}
 		defer resp.Body.Close()
 
+		// var solrResp map[string]interface{}
+		// if err := json.NewDecoder(resp.Body).Decode(&solrResp); err != nil {
+		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to decode response"})
+		// }
+		// b, _ := json.Marshal(solrResp)
+		// fmt.Println(string(b))
+		// // Parse the response buckets.
+		// facets, ok := solrResp["facets"].(map[string]interface{})
+		// if !ok {
+		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid facets in response"})
+		// }
+		// body, ok := facets["body"].(map[string]interface{})
+		// if !ok {
+		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid body in facets"})
+		// }
+		// buckets, ok := body["buckets"].([]interface{})
+		// if !ok {
+		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid buckets in response"})
+		// }
+
+		// result := make([]RelatedTerm, 0)
+		// for _, bucket := range buckets {
+		// 	bkt, ok := bucket.(map[string]interface{})
+		// 	if !ok {
+		// 		continue
+		// 	}
+		// 	var relatedVal, val string
+		// 	if rel, ok := bkt["relatedness"].(map[string]interface{}); ok {
+		// 		relatedVal = fmt.Sprintf("%v", rel["relatedness"])
+		// 	}
+		// 	val = fmt.Sprintf("%v", bkt["val"])
+		// 	// result.WriteString(fmt.Sprintf("%s\t%s\n", relatedVal, val))
+		// 	result = append(result, RelatedTerm{
+		// 		Term:        val,
+		// 		Relatedness: relatedVal,
+		// 	})
+		// }
+
 		var solrResp map[string]interface{}
 		if err := json.NewDecoder(resp.Body).Decode(&solrResp); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to decode response"})
 		}
-		b, _ := json.Marshal(solrResp)
-		fmt.Println(string(b))
-		// Parse the response buckets.
-		facets, ok := solrResp["facets"].(map[string]interface{})
-		if !ok {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid facets in response"})
-		}
-		body, ok := facets["body"].(map[string]interface{})
-		if !ok {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid body in facets"})
-		}
-		buckets, ok := body["buckets"].([]interface{})
-		if !ok {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid buckets in response"})
-		}
-
-		result := make([]RelatedTerm, 0)
-		for _, bucket := range buckets {
-			bkt, ok := bucket.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			var relatedVal, val string
-			if rel, ok := bkt["relatedness"].(map[string]interface{}); ok {
-				relatedVal = fmt.Sprintf("%v", rel["relatedness"])
-			}
-			val = fmt.Sprintf("%v", bkt["val"])
-			// result.WriteString(fmt.Sprintf("%s\t%s\n", relatedVal, val))
-			result = append(result, RelatedTerm{
-				Term:        val,
-				Relatedness: relatedVal,
-			})
-		}
+		result := transformResponseFacet(solrResp["facets"].(map[string]interface{}), reqBody["params"].(map[string]interface{}))
 
 		return c.JSON(http.StatusOK, result)
 	}
@@ -280,6 +258,7 @@ func transformRequest(multiNodes ...interface{}) map[string]interface{} {
 			// Skip if the type is unrecognized.
 			continue
 		}
+		fmt.Println(nodes)
 		var currentFacets []map[string]interface{}
 		for j, node := range nodes {
 			if node.Name == "" {
@@ -296,7 +275,7 @@ func transformRequest(multiNodes ...interface{}) map[string]interface{} {
 				}
 				for k, facet := range facets {
 					key := fmt.Sprintf("%s_%d", node.Name, k)
-					facetField[key] = facet
+					parentNode["facet"].(map[string]interface{})[key] = facet
 				}
 			}
 			// If the node has a values array, add query parameters to the root.
@@ -320,4 +299,154 @@ func requestToJSON(request map[string]interface{}) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+// transformNode converts a single node from the response.
+// It retrieves the relatedness value (if count > 0) and processes nested traversals.
+func transformNode(node map[string]interface{}, responseParams map[string]interface{}) map[string]interface{} {
+	var relatedness float64 = 0.0
+
+	// Only set relatedness if "count" > 0.
+	if countVal, ok := node["count"]; ok {
+		switch cnt := countVal.(type) {
+		case float64:
+			if cnt > 0 {
+				if relMap, ok := node["relatedness"].(map[string]interface{}); ok {
+					if relVal, ok := relMap["relatedness"]; ok {
+						if r, ok := relVal.(float64); ok {
+							relatedness = r
+						}
+					}
+				}
+			}
+		}
+	}
+
+	valueNode := map[string]interface{}{
+		"relatedness": relatedness,
+	}
+
+	subTraversals := transformResponseFacet(node, responseParams)
+	if len(subTraversals) > 0 {
+		valueNode["traversals"] = subTraversals
+	}
+
+	return valueNode
+}
+
+// transformResponseFacet traverses a response node and groups all sub-facets
+// into traversal maps while skipping certain ignored keys.
+func transformResponseFacet(node map[string]interface{}, responseParams map[string]interface{}) []map[string]interface{} {
+	ignoredKeys := map[string]bool{
+		"count":       true,
+		"relatedness": true,
+		"val":         true,
+	}
+	traversals := make(map[string]map[string]interface{})
+
+	for fullName, data := range node {
+		if ignoredKeys[fullName] {
+			continue
+		}
+
+		// Remove the trailing suffix: "_" + the last segment.
+		name := removeSuffix(fullName)
+
+		// Initialize traversal if not already present.
+		if _, exists := traversals[name]; !exists {
+			traversals[name] = map[string]interface{}{
+				"name":   name,
+				"values": map[string]interface{}{},
+			}
+		}
+
+		// Ensure data is a map.
+		if dataMap, ok := data.(map[string]interface{}); ok {
+			// If there is a "buckets" key then process each bucket.
+			if buckets, ok := dataMap["buckets"]; ok {
+				if bucketList, ok := buckets.([]interface{}); ok {
+					valuesNode := make(map[string]interface{})
+					for _, b := range bucketList {
+						if bucket, ok := b.(map[string]interface{}); ok {
+							// Use the "val" field as key.
+							keyStr := fmt.Sprintf("%v", bucket["val"])
+							valuesNode[keyStr] = transformNode(bucket, responseParams)
+						}
+					}
+					traversals[name]["values"] = valuesNode
+				}
+			} else {
+				// Otherwise, use responseParams to get the query value.
+				queryKey := fmt.Sprintf("%s_query", fullName)
+				valueName := ""
+				if v, ok := responseParams[queryKey]; ok {
+					valueName = fmt.Sprintf("%v", v)
+				}
+				// Ensure "values" is a map.
+				valuesMap, ok := traversals[name]["values"].(map[string]interface{})
+				if !ok {
+					valuesMap = make(map[string]interface{})
+				}
+				valuesMap[valueName] = transformNode(dataMap, responseParams)
+				traversals[name]["values"] = valuesMap
+			}
+		}
+	}
+
+	// Sort each traversal's values by relatedness descending.
+	for key, traversal := range traversals {
+		if values, ok := traversal["values"].(map[string]interface{}); ok {
+			sortedValues := sortByRelatednessDesc(values)
+			traversals[key]["values"] = sortedValues
+		}
+	}
+
+	// Convert map to slice.
+	var result []map[string]interface{}
+	for _, v := range traversals {
+		result = append(result, v)
+	}
+	return result
+}
+
+// removeSuffix removes the trailing "_" plus the last segment from the string.
+// For example "foo_1" becomes "foo". If no underscore is found, the input is returned.
+func removeSuffix(s string) string {
+	if idx := strings.LastIndex(s, "_"); idx != -1 {
+		return s[:idx]
+	}
+	return s
+}
+
+// sortByRelatednessDesc sorts the provided map values by their "relatedness" field in descending order
+// and returns a slice of the sorted values.
+func sortByRelatednessDesc(m map[string]interface{}) []interface{} {
+	type kv struct {
+		key         string
+		value       interface{}
+		relatedness float64
+	}
+
+	var kvList []kv
+	for k, v := range m {
+		var r float64
+		if valMap, ok := v.(map[string]interface{}); ok {
+			if rel, ok := valMap["relatedness"]; ok {
+				if rf, ok := rel.(float64); ok {
+					r = rf
+				}
+			}
+		}
+		kvList = append(kvList, kv{key: k, value: v, relatedness: r})
+	}
+
+	sort.Slice(kvList, func(i, j int) bool {
+		return kvList[i].relatedness > kvList[j].relatedness
+	})
+
+	var sorted []interface{}
+	for _, kv := range kvList {
+		sorted = append(sorted, kv.value)
+	}
+	return sorted
 }
