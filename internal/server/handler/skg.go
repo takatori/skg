@@ -41,20 +41,16 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 		}
 
-		nodes := []Node{
-			{
-				Field: "text",
-				Values: []string{
-					params.Keyword,
-				},
+		reqBody := transformRequest(Node{
+			Field: "text",
+			Values: []string{
+				params.Keyword,
 			},
-			{
-				Field:         "text",
-				MinOccurrence: lo.ToPtr(2),
-				Limit:         lo.ToPtr(8),
-			},
-		}
-		reqBody := transformRequest(nodes)
+		}, Node{
+			Field:         "text",
+			MinOccurrence: lo.ToPtr(2),
+			Limit:         lo.ToPtr(8),
+		})
 
 		payload, err := json.Marshal(reqBody)
 		if err != nil {
@@ -241,6 +237,10 @@ func defaultNodeName(i, j int) string {
 // Each multi-node can be either a single Node or a slice of Node.
 // Subsequent nodes are nested as facets of their parent nodes.
 func transformRequest(multiNodes ...interface{}) map[string]interface{} {
+
+	b2, _ := json.Marshal(multiNodes)
+	fmt.Printf("multi Nodes: %s\n", string(b2))
+
 	request := generateRequestRoot()
 	params := request["params"].(map[string]interface{})
 	// Start with the root as the only parent node.
@@ -258,14 +258,21 @@ func transformRequest(multiNodes ...interface{}) map[string]interface{} {
 			// Skip if the type is unrecognized.
 			continue
 		}
-		fmt.Println(nodes)
+		b1, _ := json.Marshal(nodes)
+		fmt.Printf("nodes: %s\n", string(b1))
+
+		b0, _ := json.Marshal(parentNodes)
+		fmt.Printf("parentNode: %s\n", string(b0))
 		var currentFacets []map[string]interface{}
+
 		for j, node := range nodes {
 			if node.Name == "" {
 				node.Name = defaultNodeName(i, j)
 			}
 			facets := generateFacets(node.Name, node.Values, node.Field, node.MinOccurrence, node.Limit, node.MinPopularity, node.DefaultOperator)
 			currentFacets = append(currentFacets, facets...)
+			b, _ := json.Marshal(currentFacets)
+			fmt.Println(string(b))
 			// Attach the generated facets to each parent node.
 			for _, parentNode := range parentNodes {
 				facetField, ok := parentNode["facet"].(map[string]interface{})
