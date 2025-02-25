@@ -57,7 +57,6 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to marshal request"})
 		}
 		fmt.Println(string(payload))
-		// Build Solr query URL.
 		url := fmt.Sprintf("%s/%s/query", solrURL, params.Collection)
 
 		resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
@@ -66,52 +65,47 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 		}
 		defer resp.Body.Close()
 
-		// var solrResp map[string]interface{}
-		// if err := json.NewDecoder(resp.Body).Decode(&solrResp); err != nil {
-		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to decode response"})
-		// }
-		// b, _ := json.Marshal(solrResp)
-		// fmt.Println(string(b))
-		// // Parse the response buckets.
-		// facets, ok := solrResp["facets"].(map[string]interface{})
-		// if !ok {
-		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid facets in response"})
-		// }
-		// body, ok := facets["body"].(map[string]interface{})
-		// if !ok {
-		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid body in facets"})
-		// }
-		// buckets, ok := body["buckets"].([]interface{})
-		// if !ok {
-		// 	return c.JSON(http.StatusInternalServerError, map[string]string{"error": "invalid buckets in response"})
-		// }
-
-		// result := make([]RelatedTerm, 0)
-		// for _, bucket := range buckets {
-		// 	bkt, ok := bucket.(map[string]interface{})
-		// 	if !ok {
-		// 		continue
-		// 	}
-		// 	var relatedVal, val string
-		// 	if rel, ok := bkt["relatedness"].(map[string]interface{}); ok {
-		// 		relatedVal = fmt.Sprintf("%v", rel["relatedness"])
-		// 	}
-		// 	val = fmt.Sprintf("%v", bkt["val"])
-		// 	// result.WriteString(fmt.Sprintf("%s\t%s\n", relatedVal, val))
-		// 	result = append(result, RelatedTerm{
-		// 		Term:        val,
-		// 		Relatedness: relatedVal,
-		// 	})
-		// }
-
 		var solrResp map[string]interface{}
 		if err := json.NewDecoder(resp.Body).Decode(&solrResp); err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to decode response"})
 		}
 		result := transformResponseFacet(solrResp["facets"].(map[string]interface{}), reqBody["params"].(map[string]interface{}))
+		fmt.Println(result)
+
+		r := result[0]
+		r2 := r["values"].([]interface{})
+		r3 := r2[0].(map[string]interface{})[params.Keyword].(map[string]interface{})
+		r4 := r3["traversals"].([]interface{})
+		fmt.Println(r4[0].(map[string]interface{})["values"])
+
+		// fmt.Println(result[0]["values"][0][params.Keyword]["traversals"]["values"])
+		// var relatedTerms []RelatedTerm
+		// for _, r := range result {
+		// 	for _, v := range r["values"].(map[string]interface{}) {
+		// 		relatedTerms = append(relatedTerms, RelatedTerm{
+		// 			Term:        v.(map[string]interface{})["relatedness"].(string),
+		// 			Relatedness: r["relatedness"].(string),
+		// 		})
+		// 	}
+		// }
 
 		return c.JSON(http.StatusOK, result)
 	}
+}
+
+func extract(input []map[string]interface{}, t []RelatedTerm) {
+
+	for _, m := range input {
+		for k, v := range m {
+			if k == "traversals" {
+				t = append(t, RelatedTerm{
+					Term:        "",
+					Relatedness: v.(string),
+				})
+			}
+		}
+	}
+
 }
 
 // Node defines the parameters for a facet node.
@@ -238,9 +232,6 @@ func defaultNodeName(i, j int) string {
 // Subsequent nodes are nested as facets of their parent nodes.
 func transformRequest(multiNodes ...interface{}) map[string]interface{} {
 
-	b2, _ := json.Marshal(multiNodes)
-	fmt.Printf("multi Nodes: %s\n", string(b2))
-
 	request := generateRequestRoot()
 	params := request["params"].(map[string]interface{})
 	// Start with the root as the only parent node.
@@ -258,11 +249,7 @@ func transformRequest(multiNodes ...interface{}) map[string]interface{} {
 			// Skip if the type is unrecognized.
 			continue
 		}
-		b1, _ := json.Marshal(nodes)
-		fmt.Printf("nodes: %s\n", string(b1))
 
-		b0, _ := json.Marshal(parentNodes)
-		fmt.Printf("parentNode: %s\n", string(b0))
 		var currentFacets []map[string]interface{}
 
 		for j, node := range nodes {
@@ -271,8 +258,7 @@ func transformRequest(multiNodes ...interface{}) map[string]interface{} {
 			}
 			facets := generateFacets(node.Name, node.Values, node.Field, node.MinOccurrence, node.Limit, node.MinPopularity, node.DefaultOperator)
 			currentFacets = append(currentFacets, facets...)
-			b, _ := json.Marshal(currentFacets)
-			fmt.Println(string(b))
+
 			// Attach the generated facets to each parent node.
 			for _, parentNode := range parentNodes {
 				facetField, ok := parentNode["facet"].(map[string]interface{})
@@ -413,6 +399,7 @@ func transformResponseFacet(node map[string]interface{}, responseParams map[stri
 	for _, v := range traversals {
 		result = append(result, v)
 	}
+
 	return result
 }
 
@@ -452,8 +439,9 @@ func sortByRelatednessDesc(m map[string]interface{}) []interface{} {
 	})
 
 	var sorted []interface{}
+
 	for _, kv := range kvList {
-		sorted = append(sorted, kv.value)
+		sorted = append(sorted, kv)
 	}
 	return sorted
 }
