@@ -70,42 +70,9 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to decode response"})
 		}
 		result := transformResponseFacet(solrResp["facets"].(map[string]interface{}), reqBody["params"].(map[string]interface{}))
-		fmt.Println(result)
-
-		r := result[0]
-		r2 := r["values"].([]interface{})
-		r3 := r2[0].(map[string]interface{})[params.Keyword].(map[string]interface{})
-		r4 := r3["traversals"].([]interface{})
-		fmt.Println(r4[0].(map[string]interface{})["values"])
-
-		// fmt.Println(result[0]["values"][0][params.Keyword]["traversals"]["values"])
-		// var relatedTerms []RelatedTerm
-		// for _, r := range result {
-		// 	for _, v := range r["values"].(map[string]interface{}) {
-		// 		relatedTerms = append(relatedTerms, RelatedTerm{
-		// 			Term:        v.(map[string]interface{})["relatedness"].(string),
-		// 			Relatedness: r["relatedness"].(string),
-		// 		})
-		// 	}
-		// }
 
 		return c.JSON(http.StatusOK, result)
 	}
-}
-
-func extract(input []map[string]interface{}, t []RelatedTerm) {
-
-	for _, m := range input {
-		for k, v := range m {
-			if k == "traversals" {
-				t = append(t, RelatedTerm{
-					Term:        "",
-					Relatedness: v.(string),
-				})
-			}
-		}
-	}
-
 }
 
 // Node defines the parameters for a facet node.
@@ -385,6 +352,7 @@ func transformResponseFacet(node map[string]interface{}, responseParams map[stri
 			}
 		}
 	}
+	fmt.Println(traversals)
 
 	// Sort each traversal's values by relatedness descending.
 	for key, traversal := range traversals {
@@ -412,16 +380,17 @@ func removeSuffix(s string) string {
 	return s
 }
 
+type Kv struct {
+	Key         string
+	Value       interface{}
+	Relatedness float64
+}
+
 // sortByRelatednessDesc sorts the provided map values by their "relatedness" field in descending order
 // and returns a slice of the sorted values.
 func sortByRelatednessDesc(m map[string]interface{}) []interface{} {
-	type kv struct {
-		key         string
-		value       interface{}
-		relatedness float64
-	}
 
-	var kvList []kv
+	var kvList []Kv
 	for k, v := range m {
 		var r float64
 		if valMap, ok := v.(map[string]interface{}); ok {
@@ -431,11 +400,11 @@ func sortByRelatednessDesc(m map[string]interface{}) []interface{} {
 				}
 			}
 		}
-		kvList = append(kvList, kv{key: k, value: v, relatedness: r})
+		kvList = append(kvList, Kv{Key: k, Value: v, Relatedness: r})
 	}
 
 	sort.Slice(kvList, func(i, j int) bool {
-		return kvList[i].relatedness > kvList[j].relatedness
+		return kvList[i].Relatedness > kvList[j].Relatedness
 	})
 
 	var sorted []interface{}
