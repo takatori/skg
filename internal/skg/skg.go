@@ -1,5 +1,7 @@
 package skg
 
+import "context"
+
 type Query struct {
 	Name            string   // optional; if empty a default name is assigned
 	Values          []string // if non-empty, a query facet is used; otherwise a terms facet is used
@@ -22,5 +24,5 @@ type Node struct {
 }
 
 type SemanticKnowledgeGraph interface {
-	Traverse([][]Query, string) (map[string]Traversal, error)
+	Traverse(context.Context, [][]Query, string) (map[string]Traversal, error)
 }

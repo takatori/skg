@@ -14,6 +14,8 @@ type SolrSemanticKnowledgeGraph struct {
 	httpClient *infra.HttpClient
 }
 
+// NewSolrSemanticKnowledgeGraph creates a new SolrSemanticKnowledgeGraph with the given config
+// and initializes the HTTP client
 func NewSolrSemanticKnowledgeGraph(config *internal.Config) *SolrSemanticKnowledgeGraph {
 	return &SolrSemanticKnowledgeGraph{
 		config:     config,
@@ -21,7 +23,16 @@ func NewSolrSemanticKnowledgeGraph(config *internal.Config) *SolrSemanticKnowled
 	}
 }
 
-func (s *SolrSemanticKnowledgeGraph) Traverse(q [][]skg.Query, collection string) (map[string]skg.Traversal, error) {
+// NewSolrSemanticKnowledgeGraphWithClient creates a new SolrSemanticKnowledgeGraph with the given config
+// and HTTP client
+func NewSolrSemanticKnowledgeGraphWithClient(config *internal.Config, httpClient *infra.HttpClient) *SolrSemanticKnowledgeGraph {
+	return &SolrSemanticKnowledgeGraph{
+		config:     config,
+		httpClient: httpClient,
+	}
+}
+
+func (s *SolrSemanticKnowledgeGraph) Traverse(ctx context.Context, q [][]skg.Query, collection string) (map[string]skg.Traversal, error) {
 	// Get Solr URL from config
 	solrURL := s.config.SolrUrl
 
@@ -38,7 +49,7 @@ func (s *SolrSemanticKnowledgeGraph) Traverse(q [][]skg.Query, collection string
 
 	// Use the HTTP client to make the request
 	err := s.httpClient.Post(
-		context.Background(),
+		ctx,
 		infra.PostRequest{
 			Request: infra.Request{
 				Url: url,

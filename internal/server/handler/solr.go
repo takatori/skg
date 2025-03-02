@@ -1,13 +1,13 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
+	"github.com/takatori/skg/internal"
 	"github.com/takatori/skg/internal/infra"
 )
 
@@ -33,24 +33,37 @@ type SolrSchemaParams struct {
 	Fields         []SolrSchemaField `json:"fields" validate:"required,dive,required"`
 }
 
-// NewSetupSolrHandlerはApache Solrのセットアップを行うエンドポイントを返す
-// SolrCloudのCollectionを作成し、必要な設定を行う
-func NewSetupSolrHandler() func(echo.Context) error {
-	httpClient := infra.NewHttpClient()
+// SolrHandler はSolr関連のハンドラを提供する構造体です
+type SolrHandler struct {
+	config     *internal.Config
+	httpClient *infra.HttpClient
+}
 
+// NewSolrHandler は新しいSolrHandlerを作成します
+func NewSolrHandler(config *internal.Config, httpClient *infra.HttpClient) *SolrHandler {
+	return &SolrHandler{
+		config:     config,
+		httpClient: httpClient,
+	}
+}
+
+// SetupSolrHandler はApache Solrのセットアップを行うエンドポイントを返します
+// SolrCloudのCollectionを作成し、必要な設定を行います
+func (h *SolrHandler) SetupSolrHandler() func(echo.Context) error {
 	return func(c echo.Context) error {
 		var params SolrSetupParams
 		if err := c.Bind(&params); err != nil {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 		}
 
-		solrURL := fmt.Sprintf("http://solr:8983/solr/admin/collections?action=CREATE&name=%s&numShards=%d&replicationFactor=%d",
+		solrURL := fmt.Sprintf("%s/admin/collections?action=CREATE&name=%s&numShards=%d&replicationFactor=%d",
+			h.config.SolrUrl,
 			params.CollectionName, params.NumShards, params.ReplicationFactor)
 
 		// Use the HTTP client to make the GET request
 		var solrResp map[string]interface{}
-		err := httpClient.Get(
-			context.Background(),
+		err := h.httpClient.Get(
+			c.Request().Context(),
 			infra.Request{
 				Url: solrURL,
 			},
@@ -64,10 +77,8 @@ func NewSetupSolrHandler() func(echo.Context) error {
 	}
 }
 
-// NewSetupSolrSchemaHandler はSolrのコレクションのschemaを設定するエンドポイントを返します
-func NewSetupSolrSchemaHandler() func(c echo.Context) error {
-	httpClient := infra.NewHttpClient()
-
+// SetupSolrSchemaHandler はSolrのコレクションのschemaを設定するエンドポイントを返します
+func (h *SolrHandler) SetupSolrSchemaHandler() func(c echo.Context) error {
 	return func(c echo.Context) error {
 		var params SolrSchemaParams
 		if err := c.Bind(&params); err != nil {
@@ -75,7 +86,7 @@ func NewSetupSolrSchemaHandler() func(c echo.Context) error {
 		}
 
 		// Solr Schema API のエンドポイント
-		solrSchemaURL := fmt.Sprintf("http://solr:8983/solr/%s/schema", params.CollectionName)
+		solrSchemaURL := fmt.Sprintf("%s/%s/schema", h.config.SolrUrl, params.CollectionName)
 
 		// 追加フィールドの定義をpayloadとして作成
 		payload := map[string]interface{}{
@@ -86,8 +97,8 @@ func NewSetupSolrSchemaHandler() func(c echo.Context) error {
 		var solrResp map[string]interface{}
 
 		// Use the HTTP client to make the request
-		err := httpClient.Post(
-			context.Background(),
+		err := h.httpClient.Post(
+			c.Request().Context(),
 			infra.PostRequest{
 				Request: infra.Request{
 					Url: solrSchemaURL,
@@ -107,10 +118,8 @@ func NewSetupSolrSchemaHandler() func(c echo.Context) error {
 	}
 }
 
-// NewFeedSolrDataHandler はアップロードされたJSONファイルを読み込み、Solrのupdate APIにデータをフィードするエンドポイントを返します
-func NewFeedSolrDataHandler() func(c echo.Context) error {
-	httpClient := infra.NewHttpClient()
-
+// FeedSolrDataHandler はアップロードされたJSONファイルを読み込み、Solrのupdate APIにデータをフィードするエンドポイントを返します
+func (h *SolrHandler) FeedSolrDataHandler() func(c echo.Context) error {
 	return func(c echo.Context) error {
 		collectionName := c.FormValue("collectionName")
 		if collectionName == "" {
@@ -134,7 +143,7 @@ func NewFeedSolrDataHandler() func(c echo.Context) error {
 		}
 
 		// Solr update API のエンドポイント (commit=true)
-		solrUpdateURL := fmt.Sprintf("http://solr:8983/solr/%s/update?commit=true", collectionName)
+		solrUpdateURL := fmt.Sprintf("%s/%s/update?commit=true", h.config.SolrUrl, collectionName)
 
 		// Parse the file bytes into a JSON object
 		var jsonData interface{}
@@ -146,8 +155,8 @@ func NewFeedSolrDataHandler() func(c echo.Context) error {
 		var solrResp interface{}
 
 		// Use the HTTP client to make the request
-		err = httpClient.Post(
-			context.Background(),
+		err = h.httpClient.Post(
+			c.Request().Context(),
 			infra.PostRequest{
 				Request: infra.Request{
 					Url: solrUpdateURL,

@@ -6,6 +6,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
 	"github.com/takatori/skg/internal"
+	"github.com/takatori/skg/internal/infra"
 	"github.com/takatori/skg/internal/skg"
 	"github.com/takatori/skg/internal/skg/solr"
 )
@@ -22,8 +23,22 @@ type RelatedTerm struct {
 	Relatedness float64 `json:"relatedness"`
 }
 
-// NewRelatedTermsHandler creates a handler that queries Solr and returns formatted related terms.
-func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
+// RelatedTermsHandler handles requests for related terms
+type RelatedTermsHandler struct {
+	config     *internal.Config
+	httpClient *infra.HttpClient
+}
+
+// NewRelatedTermsHandlerWithClient creates a new RelatedTermsHandler with the given config and HTTP client
+func NewRelatedTermsHandlerWithClient(config *internal.Config, httpClient *infra.HttpClient) *RelatedTermsHandler {
+	return &RelatedTermsHandler{
+		config:     config,
+		httpClient: httpClient,
+	}
+}
+
+// RelatedTermsEndpoint returns an Echo handler function for the related terms endpoint
+func (h *RelatedTermsHandler) RelatedTermsEndpoint() func(echo.Context) error {
 	return func(c echo.Context) error {
 		// Parse and validate request parameters
 		params, err := parseParams(c)
@@ -35,8 +50,8 @@ func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
 		queries := buildQueries(params.Keyword)
 
 		// Query the semantic knowledge graph
-		skgInstance := solr.NewSolrSemanticKnowledgeGraph(config)
-		result, err := skgInstance.Traverse(queries, params.Collection)
+		skgInstance := solr.NewSolrSemanticKnowledgeGraphWithClient(h.config, h.httpClient)
+		result, err := skgInstance.Traverse(c.Request().Context(), queries, params.Collection)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
@@ -46,6 +61,12 @@ func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
 
 		return c.JSON(http.StatusOK, relatedTerms)
 	}
+}
+
+// For backward compatibility
+func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
+	handler := NewRelatedTermsHandlerWithClient(config, infra.NewHttpClient())
+	return handler.RelatedTermsEndpoint()
 }
 
 // parseParams extracts and validates the request parameters
