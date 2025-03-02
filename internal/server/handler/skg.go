@@ -37,16 +37,22 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
 		}
 
-		queries := []skg.Query{{
-			Field: "text",
-			Values: []string{
-				params.Keyword,
+		queries := [][]skg.Query{
+			{
+				{
+					Field: "text",
+					Values: []string{
+						params.Keyword,
+					},
+				},
+			}, {
+				{
+					Field:         "text",
+					MinOccurrence: lo.ToPtr(2),
+					Limit:         lo.ToPtr(8),
+				},
 			},
-		}, {
-			Field:         "text",
-			MinOccurrence: lo.ToPtr(2),
-			Limit:         lo.ToPtr(8),
-		}}
+		}
 
 		skg := solr.NewSolrSemanticKnowledgeGraph()
 
