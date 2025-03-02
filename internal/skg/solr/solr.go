@@ -6,18 +6,23 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/takatori/skg/internal"
 	"github.com/takatori/skg/internal/skg"
 )
 
 type SolrSemanticKnowledgeGraph struct {
+	config *internal.Config
 }
 
-func NewSolrSemanticKnowledgeGraph() *SolrSemanticKnowledgeGraph {
-	return &SolrSemanticKnowledgeGraph{}
+func NewSolrSemanticKnowledgeGraph(config *internal.Config) *SolrSemanticKnowledgeGraph {
+	return &SolrSemanticKnowledgeGraph{
+		config: config,
+	}
 }
 
 func (s *SolrSemanticKnowledgeGraph) Traverse(q [][]skg.Query, collection string) (map[string]skg.Traversal, error) {
-	solrURL := "http://solr:8983/solr"
+	// Get Solr URL from config
+	solrURL := s.config.SolrUrl
 
 	// Use default collection if none provided
 	if collection == "" {

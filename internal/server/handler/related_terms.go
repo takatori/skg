@@ -5,6 +5,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
+	"github.com/takatori/skg/internal"
 	"github.com/takatori/skg/internal/skg"
 	"github.com/takatori/skg/internal/skg/solr"
 )
@@ -22,7 +23,7 @@ type RelatedTerm struct {
 }
 
 // NewRelatedTermsHandler creates a handler that queries Solr and returns formatted related terms.
-func NewRelatedTermsHandler() func(echo.Context) error {
+func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
 	return func(c echo.Context) error {
 		// Parse and validate request parameters
 		params, err := parseParams(c)
@@ -34,7 +35,7 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 		queries := buildQueries(params.Keyword)
 
 		// Query the semantic knowledge graph
-		skgInstance := solr.NewSolrSemanticKnowledgeGraph()
+		skgInstance := solr.NewSolrSemanticKnowledgeGraph(config)
 		result, err := skgInstance.Traverse(queries, params.Collection)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})

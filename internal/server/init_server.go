@@ -13,7 +13,7 @@ func InitServer(config *internal.Config) (*echo.Echo, error) {
 	e.POST("/solr/setup", handler.NewSetupSolrHandler())
 	e.POST("/solr/schema", handler.NewSetupSolrSchemaHandler())
 	e.POST("/solr/feed", handler.NewFeedSolrDataHandler())
-	e.POST("/skg/relatedTerms", handler.NewRelatedTermsHandler())
+	e.POST("/skg/relatedTerms", handler.NewRelatedTermsHandler(config))
 
 	return e, nil
 }
