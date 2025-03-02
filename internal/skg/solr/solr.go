@@ -16,10 +16,13 @@ func NewSolrSemanticKnowledgeGraph() *SolrSemanticKnowledgeGraph {
 	return &SolrSemanticKnowledgeGraph{}
 }
 
-func (s *SolrSemanticKnowledgeGraph) Traverse(q [][]skg.Query) (map[string]skg.Traversal, error) {
-
+func (s *SolrSemanticKnowledgeGraph) Traverse(q [][]skg.Query, collection string) (map[string]skg.Traversal, error) {
 	solrURL := "http://solr:8983/solr"
-	collection := "products"
+
+	// Use default collection if none provided
+	if collection == "" {
+		collection = "products"
+	}
 
 	reqBody := transformRequest(q)
 

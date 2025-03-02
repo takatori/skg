@@ -22,5 +22,5 @@ type Node struct {
 }
 
 type SemanticKnowledgeGraph interface {
-	Traverse([]Query) (map[string]Traversal, error)
+	Traverse([][]Query, string) (map[string]Traversal, error)
 }

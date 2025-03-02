@@ -35,7 +35,7 @@ func NewRelatedTermsHandler() func(echo.Context) error {
 
 		// Query the semantic knowledge graph
 		skgInstance := solr.NewSolrSemanticKnowledgeGraph()
-		result, err := skgInstance.Traverse(queries)
+		result, err := skgInstance.Traverse(queries, params.Collection)
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
