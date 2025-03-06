@@ -33,16 +33,13 @@ func NewSolrSemanticKnowledgeGraphWithClient(config *internal.Config, httpClient
 }
 
 func (s *SolrSemanticKnowledgeGraph) Traverse(ctx context.Context, q [][]skg.Query, collection string) (map[string]skg.Traversal, error) {
-	// Get Solr URL from config
-	solrURL := s.config.SolrUrl
-
 	// Use default collection if none provided
 	if collection == "" {
 		collection = "products"
 	}
 
 	reqBody := transformRequest(q)
-	url := fmt.Sprintf("%s/%s/query", solrURL, collection)
+	url := fmt.Sprintf("%s/%s/query", s.config.SolrUrl, collection)
 
 	// Create a response map to hold the Solr response
 	var solrResp map[string]interface{}

@@ -23,6 +23,12 @@ type RelatedTerm struct {
 	Relatedness float64 `json:"relatedness"`
 }
 
+type CalcRelatednessParams struct {
+	Keyword    string `json:"keyword" validate:"required"`
+	Document   string `json:"document" validate:"required"`
+	Collection string `json:"collection" validate:"required"`
+}
+
 // RelatedTermsHandler handles requests for related terms
 type RelatedTermsHandler struct {
 	config     *internal.Config
@@ -63,6 +69,44 @@ func (h *RelatedTermsHandler) RelatedTermsEndpoint() func(echo.Context) error {
 	}
 }
 
+func (h *RelatedTermsHandler) CalcRelatedness() func(echo.Context) error {
+
+	return func(c echo.Context) error {
+		params, err := parseCalcParams(c)
+		if err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
+		}
+
+		queries := [][]skg.Query{
+			{
+				{
+					Field: "text",
+					Values: []string{
+						params.Keyword,
+					},
+				},
+			},
+			{
+				{
+					Field: "text",
+					Values: []string{
+						params.Document,
+					},
+					DefaultOperator: "OR",
+				},
+			},
+		}
+
+		skgInstance := solr.NewSolrSemanticKnowledgeGraphWithClient(h.config, h.httpClient)
+		result, err := skgInstance.Traverse(c.Request().Context(), queries, params.Collection)
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+
+		return c.JSON(http.StatusOK, result)
+	}
+}
+
 // For backward compatibility
 func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
 	handler := NewRelatedTermsHandlerWithClient(config, infra.NewHttpClient())
@@ -72,6 +116,14 @@ func NewRelatedTermsHandler(config *internal.Config) func(echo.Context) error {
 // parseParams extracts and validates the request parameters
 func parseParams(c echo.Context) (RelatedTermsParams, error) {
 	var params RelatedTermsParams
+	if err := c.Bind(&params); err != nil {
+		return params, err
+	}
+	return params, nil
+}
+
+func parseCalcParams(c echo.Context) (CalcRelatednessParams, error) {
+	var params CalcRelatednessParams
 	if err := c.Bind(&params); err != nil {
 		return params, err
 	}

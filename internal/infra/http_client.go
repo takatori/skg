@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -130,6 +131,7 @@ func (c *HttpClient) Post(ctx context.Context, req PostRequest, expected any) er
 			},
 		)
 	}
+	slog.Debug("encoded req body: %s", string(encoded))
 
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, req.Url, bytes.NewBuffer(encoded))
 	if err != nil {
@@ -193,6 +195,15 @@ func (c *HttpClient) Post(ctx context.Context, req PostRequest, expected any) er
 			},
 		)
 	}
+	defer func() {
+		if res.Body != nil {
+			if closeErr := res.Body.Close(); closeErr != nil {
+				slog.Warn("failed to close response body: %v", closeErr)
+			}
+		}
+	}()
+
+	slog.Debug("response body: %s", string(body))
 
 	if err := json.Unmarshal(body, expected); err != nil {
 		return failure.Translate(
