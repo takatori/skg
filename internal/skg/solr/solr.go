@@ -61,6 +61,9 @@ func (s *SolrSemanticKnowledgeGraph) Traverse(ctx context.Context, q [][]skg.Que
 	if err != nil {
 		return nil, fmt.Errorf("failed to send post request: %w", err)
 	}
-
-	return transformResponseFacet(solrResp["facets"].(map[string]interface{}), reqBody["params"].(map[string]interface{})), nil
+	node := solrResp["facets"].(map[string]interface{})
+	converter := ResponseConverter{
+		RequestParams: reqBody["params"].(map[string]interface{}),
+	}
+	return converter.transformResponseFacet(node), nil
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
@@ -77,6 +78,8 @@ func (h *RelatedTermsHandler) CalcRelatedness() func(echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
 
+		phrases := strings.Split(params.Document, " ")
+
 		queries := [][]skg.Query{
 			{
 				{
@@ -88,11 +91,8 @@ func (h *RelatedTermsHandler) CalcRelatedness() func(echo.Context) error {
 			},
 			{
 				{
-					Field: "text",
-					Values: []string{
-						params.Document,
-					},
-					DefaultOperator: "OR",
+					Field:  "text",
+					Values: phrases,
 				},
 			},
 		}

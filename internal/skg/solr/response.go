@@ -7,9 +7,13 @@ import (
 	"github.com/takatori/skg/internal/skg"
 )
 
+type ResponseConverter struct {
+	RequestParams map[string]interface{}
+}
+
 // transformResponseFacet processes a response node and creates traversal maps
 // by grouping related facets while ignoring specific keys.
-func transformResponseFacet(node map[string]interface{}, responseParams map[string]interface{}) map[string]skg.Traversal {
+func (r *ResponseConverter) transformResponseFacet(node map[string]interface{}) map[string]skg.Traversal {
 	ignoredKeys := map[string]bool{
 		"count":       true,
 		"relatedness": true,
@@ -40,10 +44,15 @@ func transformResponseFacet(node map[string]interface{}, responseParams map[stri
 
 		// Process buckets if they exist
 		if buckets, hasBuckets := dataMap["buckets"]; hasBuckets {
-			traversal.Values = processBuckets(buckets, responseParams)
+			traversal.Values = r.processBuckets(buckets)
 		} else {
 			// Process single node
-			traversal.Values = append(traversal.Values, transformNode(dataMap, responseParams))
+			n := r.transformNode(dataMap)
+			if valueName, ok := r.RequestParams[fmt.Sprintf("%s_query", fullName)]; ok {
+				n.Key = valueName.(string)
+			}
+
+			traversal.Values = append(traversal.Values, n)
 		}
 
 		traversals[name] = traversal
@@ -53,7 +62,7 @@ func transformResponseFacet(node map[string]interface{}, responseParams map[stri
 }
 
 // processBuckets extracts and transforms bucket data into Node values
-func processBuckets(buckets interface{}, responseParams map[string]interface{}) []skg.Node {
+func (r *ResponseConverter) processBuckets(buckets interface{}) []skg.Node {
 	bucketList, ok := buckets.([]interface{})
 	if !ok {
 		return nil
@@ -65,7 +74,7 @@ func processBuckets(buckets interface{}, responseParams map[string]interface{}) 
 		if !ok {
 			continue
 		}
-		values = append(values, transformNode(bucket, responseParams))
+		values = append(values, r.transformNode(bucket))
 	}
 
 	return values
@@ -73,7 +82,7 @@ func processBuckets(buckets interface{}, responseParams map[string]interface{}) 
 
 // transformNode converts a response node into an skg.Node structure
 // with key, relatedness value, and nested traversals.
-func transformNode(node map[string]interface{}, responseParams map[string]interface{}) skg.Node {
+func (r *ResponseConverter) transformNode(node map[string]interface{}) skg.Node {
 	var keyStr string
 	if val, ok := node["val"]; ok {
 		keyStr = fmt.Sprintf("%v", val)
@@ -88,7 +97,7 @@ func transformNode(node map[string]interface{}, responseParams map[string]interf
 	}
 
 	// Process nested traversals
-	subTraversals := transformResponseFacet(node, responseParams)
+	subTraversals := r.transformResponseFacet(node)
 	for _, subTraversal := range subTraversals {
 		valueNode.Traversals = append(valueNode.Traversals, subTraversal)
 	}
