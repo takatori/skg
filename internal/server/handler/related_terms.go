@@ -2,8 +2,9 @@ package handler
 
 import (
 	"net/http"
-	"strings"
 
+	"github.com/ikawaha/kagome-dict/ipa"
+	"github.com/ikawaha/kagome/v2/tokenizer"
 	"github.com/labstack/echo/v4"
 	"github.com/samber/lo"
 	"github.com/takatori/skg/internal"
@@ -78,7 +79,31 @@ func (h *RelatedTermsHandler) CalcRelatedness() func(echo.Context) error {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
 		}
 
-		phrases := strings.Split(params.Document, " ")
+		// Use Kagome tokenizer with IPA dictionary for morphological analysis
+		t, err := tokenizer.New(ipa.Dict())
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to initialize tokenizer"})
+		}
+		tokens := t.Tokenize(params.Document)
+
+		// Extract meaningful words (nouns, verbs, adjectives, etc.)
+		var phrases []string
+		for _, token := range tokens {
+			// Skip punctuation, symbols, and other non-content tokens
+			if token.Class == tokenizer.DUMMY {
+				continue
+			}
+
+			// Get the base form of the word
+			features := token.Features()
+			if len(features) > 6 && features[6] != "*" {
+				// Use base form if available
+				phrases = append(phrases, features[6])
+			} else {
+				// Otherwise use the surface form
+				phrases = append(phrases, token.Surface)
+			}
+		}
 
 		queries := [][]skg.Query{
 			{
