@@ -130,7 +130,8 @@ func TestTransformNode(t *testing.T) {
 	}
 
 	t.Run("simple node", func(t *testing.T) {
-		result := transformNode(simpleNode, nil)
+		converter := &ResponseConverter{}
+		result := converter.transformNode(simpleNode)
 		expected := skg.Node{
 			Key:         "test",
 			Relatedness: 0.75,
@@ -143,7 +144,8 @@ func TestTransformNode(t *testing.T) {
 	})
 
 	t.Run("nested node", func(t *testing.T) {
-		result := transformNode(nestedNode, nil)
+		converter := &ResponseConverter{}
+		result := converter.transformNode(nestedNode)
 		if result.Key != "parent" || result.Relatedness != 0.75 {
 			t.Errorf("transformNode() key/relatedness = %s/%f, expected parent/0.75", result.Key, result.Relatedness)
 		}
@@ -186,7 +188,8 @@ func TestProcessBuckets(t *testing.T) {
 		"not a map", // This should be skipped
 	}
 
-	result := processBuckets(buckets, nil)
+	converter := &ResponseConverter{}
+	result := converter.processBuckets(buckets)
 
 	if len(result) != 2 {
 		t.Fatalf("Expected 2 nodes, got %d", len(result))
@@ -201,7 +204,7 @@ func TestProcessBuckets(t *testing.T) {
 	}
 
 	// Test with invalid input
-	invalidResult := processBuckets("not a slice", nil)
+	invalidResult := converter.processBuckets("not a slice")
 	if invalidResult != nil {
 		t.Errorf("Expected nil for invalid input, got %v", invalidResult)
 	}
@@ -300,7 +303,8 @@ func TestTransformResponseFacet(t *testing.T) {
 		t.Fatalf("Expected facets to be a map, got %T", data["facets"])
 	}
 
-	result := transformResponseFacet(facets, nil)
+	converter := &ResponseConverter{}
+	result := converter.transformResponseFacet(facets)
 
 	// Verify the result structure
 	if len(result) != 1 {
@@ -474,7 +478,17 @@ func TestIntegration(t *testing.T) {
 		t.Fatalf("Expected facets to be a map, got %T", data["facets"])
 	}
 
-	result := transformResponseFacet(facets, nil)
+	// Create a ResponseConverter with request parameters
+	requestParams := map[string]interface{}{
+		"q":       "*:*",
+		"fore":    "{!${defType} v=$q}",
+		"back":    "*:*",
+		"defType": "edismax",
+	}
+	converter := &ResponseConverter{
+		RequestParams: requestParams,
+	}
+	result := converter.transformResponseFacet(facets)
 
 	// Compare the result with the expected structure
 	// Note: We're only checking the structure and key values, not doing a deep equality check
