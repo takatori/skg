@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"net/http"
 	"sort"
 
@@ -97,6 +98,10 @@ func (h *RelatedTermsHandler) CalcRelatedness() func(echo.Context) error {
 
 			// Get the base form of the word
 			features := token.Features()
+			if len(features) > 0 && features[0] != "名詞" {
+				continue
+			}
+
 			if len(features) > 6 && features[6] != "*" {
 				// Use base form if available
 				phrases = append(phrases, features[6])
