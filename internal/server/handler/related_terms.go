@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"sort"
 
 	"github.com/ikawaha/kagome-dict/ipa"
 	"github.com/ikawaha/kagome/v2/tokenizer"
@@ -124,11 +125,20 @@ func (h *RelatedTermsHandler) CalcRelatedness() func(echo.Context) error {
 
 		skgInstance := solr.NewSolrSemanticKnowledgeGraphWithClient(h.config, h.httpClient)
 		result, err := skgInstance.Traverse(c.Request().Context(), queries, params.Collection)
+
 		if err != nil {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		return c.JSON(http.StatusOK, result)
+		// Convert result to RelatedTerm objects
+		response := extractRelatedTermsForCalc(result)
+
+		// Sort by relatedness in descending order
+		sort.Slice(response, func(i, j int) bool {
+			return response[i].Relatedness > response[j].Relatedness
+		})
+
+		return c.JSON(http.StatusOK, response)
 	}
 }
 
@@ -178,6 +188,30 @@ func buildQueries(keyword string) [][]skg.Query {
 
 // extractRelatedTerms processes the SKG result into a list of related terms
 func extractRelatedTerms(result map[string]skg.Traversal) []RelatedTerm {
+	var relatedTerms []RelatedTerm
+
+	for _, item := range result {
+		// Skip if there are no values
+		if len(item.Values) == 0 {
+			continue
+		}
+
+		// Process each traversal in the first value
+		for _, traversal := range item.Values[0].Traversals {
+			for _, value := range traversal.Values {
+				relatedTerms = append(relatedTerms, RelatedTerm{
+					Term:        value.Key,
+					Relatedness: value.Relatedness,
+				})
+			}
+		}
+	}
+
+	return relatedTerms
+}
+
+// extractRelatedTermsForCalc processes the SKG result into a list of related terms for the CalcRelatedness function
+func extractRelatedTermsForCalc(result map[string]skg.Traversal) []RelatedTerm {
 	var relatedTerms []RelatedTerm
 
 	for _, item := range result {
